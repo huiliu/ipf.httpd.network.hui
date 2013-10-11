@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#define _XOPEN_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
@@ -59,8 +60,8 @@ ev_read(int fd, short event, void *argv)
         char ret_url[50];
         sscanf(url, "%[^?]", ret_url);
 
-        char key[60] = "\0";
-        char *value;
+        char key_tmp[60] = "\0";
+        char *key, *value;
         time_t t = time(NULL);
         time_t timestamp;
         size_t  count;
@@ -68,7 +69,8 @@ ev_read(int fd, short event, void *argv)
         int8_t active = 0;
         uint32_t flags = 0;
 
-        sprintf(key, "%u_%s", ip_addr.s_addr, ret_url);
+        sprintf(key_tmp, "%u_%s", ip_addr.s_addr, ret_url);
+        key = crypt(key_tmp, "$1$--------");
         key_len = strlen(key);
 
         fprintf(stdout, "Key: %s\n", key);
@@ -139,8 +141,8 @@ ev_read(int fd, short event, void *argv)
         if ((rc = memcached_add(memc, key, key_len,
                                                 value, value_len, 181, flags))
                                                         != MEMCACHED_SUCCESS) {
-            fprintf(stderr, "New: %s\nLen: %zu\n",
-                                        memcached_strerror(memc, rc), key_len);
+            fprintf(stderr, "\e[31mFailed\e[0m: %s\n",
+                                                memcached_strerror(memc, rc));
             return;
         }else
             fprintf(stdout, "add successfully!\n");
