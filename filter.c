@@ -16,6 +16,8 @@
 
 #include <libmemcached/memcached.h>
 
+#define _DEBUG_     1
+
 FILE *f = NULL;
 size_t t = 0;
 char *buff = NULL;
@@ -63,6 +65,9 @@ ev_read(int fd, short event, void *argv)
         char key_tmp[60] = "\0";
         char *key, *value;
         time_t t = time(NULL);
+        #if _DEBUG_
+        time_t t = 1381003342;
+        #endif
         time_t timestamp;
         size_t  count;
         struct tm m;
@@ -77,77 +82,98 @@ ev_read(int fd, short event, void *argv)
         if ((value = memcached_get(memc, key, key_len, &value_len, 0, &rc))
                                                                     != NULL) {
             // handle with errors.
+            #if _DEBUG_
             fprintf(stdout, "%s\n", value);
+            #endif
             sscanf(value, "%ld %zu", &timestamp, &count);
+            #if _DEBUG_
             fprintf(stdout, "%ld %zu %ld\n", timestamp, count, t - timestamp);
+            #endif
 
-            if ((t - timestamp) >= 10 && (t - timestamp) < 30) {
-                if (count > 30)
-                    active = 1;
-                else
-                    active = 0;
-            }else if ((t - timestamp) >= 30 && (t - timestamp) < 60) {
-                if (count > 70)
-                    active = 1;
-                else
-                    active = 0;
-            }else{
-                if (count > 130)
-                    active = 1;
-                else
-                    // timeout
-                    active = 2;
-            }
-            fprintf(stderr, "%s\nactive: %d\nKey: %s\n", memcached_strerror(memc, rc), active, key);
+            time_t delta_time = t - timestamp;
+            #if _DEBUG_
+            fprintf(stdout, "Delta Time: %ld\n", delta_time);
+            #endif
+
+            if (delta_time < 10)
+                active = (count > 30 ? 1 : 0);
+            else if (delta_time >= 10 && delta_time < 30)
+                active = (count > 70 ? 1 : 0);
+            else if (delta_time >= 30 && delta_time < 60)
+                active = (count > 130 ? 1 : 0);
+            else
+                active = (count > 180 ? 1 : 2);
+
+            #if _DEBUG_
+            fprintf(stderr, "GET STATE: %s\tactive: %d\tKey: %s\n",
+                                    memcached_strerror(memc, rc), active, key);
+            #endif
 
             if (active == 1) {
                 // insert into black list
-                //
+                fprintf(stderr, "[error]: %s\n", inet_ntoa(ip_addr));
                 if ((rc = memcached_delete(memc, key, key_len, 0)) != MEMCACHED_SUCCESS) {
+                    #if _DEBUG_
                     fprintf(stderr, "%s\nactive: %d\nkey: %s\n", memcached_strerror(memc, rc), active, key);
+                    #endif
                     return;
                 }
             }else if (active == 2) {
                 if ((rc = memcached_delete(memc, key, key_len, 0)) != MEMCACHED_SUCCESS) {
+                    #if _DEBUG_
                     fprintf(stderr, "%s\nactive: %d\nKey: %s\n", memcached_strerror(memc, rc), active, key);
+                    #endif
                     return;
                 }
             }else if (active == 0) {
                 // update
                 count++;
+            #if _DEBUG_
                 fprintf(stdout, "B: %ld %zu\n", timestamp, count);
+            #endif
+
                 sprintf(value, "%ld %zu", timestamp, count);
+
+            #if _DEBUG_
                 fprintf(stdout, "A: %ld %zu\n", timestamp, count);
+            #endif
                 if ((rc = memcached_replace(memc, key, strlen(key), value, strlen(value), 181, flags)) != MEMCACHED_SUCCESS) {
+            #if _DEBUG_
                     fprintf(stderr, "%s\nactive: %d\nKey: %s\n", memcached_strerror(memc, rc), active, key);
+            #endif
                     return;
                 }else
+            #if _DEBUG_
                     fprintf(stdout, "update successfully! %zu\n", count);
+            #endif
             }else{
-                fprintf(stdout,
-                        "the state of key \"%s\" occure errors: %u!\n",
-                        key, active);
+            #if _DEBUG_
+                fprintf(stdout, "the state of key \"%s\" occure errors: %u!\n",
+                                                                    key, active);
+            #endif
             }
-        }
+        }else{
+            value = calloc(sizeof(char), 16);
 
-        value = calloc(sizeof(char), 16);
+            strptime(datetime, "%d/%b/%Y:%T", &m);
+            t = mktime(&m);
 
-        strptime(datetime, "%d/%b/%Y:%T", &m);
-        t = mktime(&m);
+            sprintf(value, "%lu %u", t, 1);
+            value_len = strlen(value);
 
-        sprintf(value, "%lu %u", t, 1);
-        value_len = strlen(value);
-
-        if ((rc = memcached_add(memc, key, key_len,
-                                                value, value_len, 181, flags))
-                                                        != MEMCACHED_SUCCESS) {
-            fprintf(stderr, "\e[31mFailed\e[0m: %s\n",
+            if ((rc = memcached_add(memc, key, key_len,
+                                                    value, value_len, 181, flags))
+                                                            != MEMCACHED_SUCCESS) {
+            #if _DEBUG_
+                fprintf(stderr, "\e[31mFailed\e[0m: %s\n",
                                                 memcached_strerror(memc, rc));
-            return;
-        }else
-            fprintf(stdout, "add successfully!\n");
+            #endif
+                return;
+            }else
+                fprintf(stdout, "add successfully!\n");
 
-        free(value);
+            free(value);
+        }
     }else
         exit(EXIT_SUCCESS);
 }
