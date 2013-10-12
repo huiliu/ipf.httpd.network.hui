@@ -254,12 +254,9 @@ main(int argc, char **argv)
     struct timeval tv;
     uint16_t interval = 5;
 
-    int fn = 0;
-
     const char *config_string = "--SERVER=localhost";
     memc = memcached(config_string, strlen(config_string));
 
-    fn = open("/dev/stdin", O_RDONLY | O_NONBLOCK, 0);
     f = fopen(file_name, "a+");
 
     base = event_init();
