@@ -64,9 +64,10 @@ ev_read(int fd, short event, void *argv)
 
         char key_tmp[60] = "\0";
         char *key, *value;
-        time_t t = time(NULL);
         #if _DEBUG_
         time_t t = 1381003342;
+        #else
+        time_t t = time(NULL);
         #endif
         time_t timestamp;
         size_t  count;
